@@ -6,7 +6,7 @@ namespace ClearBank.DeveloperTest.Services
 {
     public class PaymentUtils
     {
-        IAccountStoreFactory _accountStoreFactory;
+        private readonly IAccountStoreFactory _accountStoreFactory;
         public PaymentUtils(IAccountStoreFactory accountStoreFactory)
         {
             _accountStoreFactory = accountStoreFactory;
@@ -20,6 +20,7 @@ namespace ClearBank.DeveloperTest.Services
 
         private static IAccountStore GetAccountStore(IAccountStoreFactory accountStoreFactory)
         {
+            // This should all be worked out via IOC and passed into this method.
             IAccountStore accountStore = null;
             if (accountStoreFactory != null)
             {
@@ -43,7 +44,7 @@ namespace ClearBank.DeveloperTest.Services
 
         public Account GetAccount(string debtorAccountNumber)
         {
-            IAccountStore store = GetAccountStore(_accountStoreFactory);
+            var store = GetAccountStore(_accountStoreFactory);
             return store.GetAccount(debtorAccountNumber);
         }
     }

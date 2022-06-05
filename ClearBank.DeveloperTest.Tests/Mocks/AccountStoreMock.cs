@@ -1,24 +1,23 @@
 ﻿using ClearBank.DeveloperTest.Data;
 using ClearBank.DeveloperTest.Types;
-using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace ClearBank.DeveloperTest.Tests.Mocks
 {
-    class AccountStoreMock : IAccountStore
+    internal class AccountStoreMock : IAccountStore
     {
         Account IAccountStore.GetAccount(string accountNumber)
         {
-            if (accountNumber == "ukfp-123")
+            if (accountNumber != "ukfp-123")
             {
-                Account acc = new Account();
-                acc.AccountNumber = "ukfp-123";
-                acc.AllowedPaymentSchemes = AllowedPaymentSchemes.FasterPayments;
-                acc.Balance = 100;
-                return acc;
+                return null;
             }
-            return null;
+
+            return new Account
+            {
+                AccountNumber = "ukfp-123",
+                AllowedPaymentSchemes = AllowedPaymentSchemes.FasterPayments,
+                Balance = 100
+            };
         }
 
         void IAccountStore.UpdateAccount(Account account)

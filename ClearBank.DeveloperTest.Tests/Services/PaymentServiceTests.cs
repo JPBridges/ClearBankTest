@@ -11,34 +11,32 @@ namespace ClearBank.DeveloperTest.Services.Tests
     [TestClass()]
     public class PaymentServiceTests
     {
-        [TestMethod()]
+        [TestMethod]
         public void givenAccountWithFunds_whenFasterPayment_thenSuccess()
         {
-            // Arange
+            // The problem with this is that we have a lot of hidden setup inside the
+            // AccountStoreFactoryMock - it would be better if it was explicit.
             var service = new PaymentService(new AccountStoreFactoryMock());
-            var request = new MakePaymentRequest();
-            request.DebtorAccountNumber = "ukfp-123";
-            request.PaymentScheme = PaymentScheme.FasterPayments;
-            request.Amount = 50;
+            var request = new MakePaymentRequest
+            {
+                DebtorAccountNumber = "ukfp-123",
+                PaymentScheme = PaymentScheme.FasterPayments,
+                Amount = 50
+            };
 
-            // Act
             var result = service.MakePayment(request);
 
-            // Asert
             Assert.IsTrue(result.Success);
         }
 
-        [TestMethod()]
+        [TestMethod]
         public void givenUnspecifiedAccount_whenBacsPayment_thenFailure()
         {
-            // Arange
             var service = new PaymentService();
             var request = new MakePaymentRequest();
 
-            // Act
             var result = service.MakePayment(request);
 
-            // Asert
             Assert.IsFalse(result.Success);
         }
     }
