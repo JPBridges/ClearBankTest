@@ -1,43 +1,80 @@
-﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using System;
+using ClearBank.DeveloperTest.Data;
+using ClearBank.DeveloperTest.Rules;
 using ClearBank.DeveloperTest.Services;
-using System;
-using System.Collections.Generic;
-using System.Text;
 using ClearBank.DeveloperTest.Types;
-using ClearBank.DeveloperTest.Tests.Mocks;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Moq;
 
-namespace ClearBank.DeveloperTest.Services.Tests
+namespace ClearBank.DeveloperTest.Tests.Services
 {
-    [TestClass()]
+    [TestClass]
     public class PaymentServiceTests
     {
-        [TestMethod]
-        public void givenAccountWithFunds_whenFasterPayment_thenSuccess()
-        {
-            // The problem with this is that we have a lot of hidden setup inside the
-            // AccountStoreFactoryMock - it would be better if it was explicit.
-            var service = new PaymentService(new AccountStoreFactoryMock());
-            var request = new MakePaymentRequest
-            {
-                DebtorAccountNumber = "ukfp-123",
-                PaymentScheme = PaymentScheme.FasterPayments,
-                Amount = 50
-            };
+        private Mock<IAccountRepository> _accountRepository;
+        private PaymentService _service;
+        private Mock<IPaymentValidatorFactory> _validatorFactory;
+        private Mock<IPaymentValidator> _validator;
+        private const string AccountNumber = "ukfp-123";
 
-            var result = service.MakePayment(request);
+
+        [TestInitialize]
+        public void Setup()
+        {
+            _accountRepository = new Mock<IAccountRepository>();
+            _validatorFactory = new Mock<IPaymentValidatorFactory>();
+            _validator = new Mock<IPaymentValidator>();
+
+            _validatorFactory
+                .Setup(f => f.Create(It.IsAny<PaymentScheme>()))
+                .Returns(_validator.Object);
+
+            _accountRepository
+                .Setup(r => r.GetAccount(AccountNumber))
+                .Returns(new Account {Balance = 100});
+
+            _service = new PaymentService(_accountRepository.Object, _validatorFactory.Object);
+
+        }
+
+        [TestMethod]
+        public void givenAccountValidationPasses_whenMakingPayment_thenSuccess()
+        {
+            _validator
+                .Setup(x => x.Validate(It.IsAny<MakePaymentRequest>(), It.IsAny<Account>()))
+                .Returns(true);
+
+            var request = new MakePaymentRequest { DebtorAccountNumber = AccountNumber, Amount = 100 };
+
+            var result = _service.MakePayment(request);
 
             Assert.IsTrue(result.Success);
         }
 
         [TestMethod]
-        public void givenUnspecifiedAccount_whenBacsPayment_thenFailure()
+        public void givenAccountValidationFails_whenMakingPayment_thenFailure()
         {
-            var service = new PaymentService();
-            var request = new MakePaymentRequest();
+            _validator
+                .Setup(x => x.Validate(It.IsAny<MakePaymentRequest>(), It.IsAny<Account>()))
+                .Returns(false);
 
-            var result = service.MakePayment(request);
+            var request = new MakePaymentRequest { DebtorAccountNumber = AccountNumber, Amount = 100 };
+
+            var result = _service.MakePayment(request);
 
             Assert.IsFalse(result.Success);
+        }
+
+        [TestMethod]
+        public void givenExceptionIsThrow_whenMakingPayment_thenExceptionBubblesUp()
+        {
+            _accountRepository
+                .Setup(r => r.GetAccount(AccountNumber))
+                .Throws(new Exception("oh no"));
+
+            var request = new MakePaymentRequest { DebtorAccountNumber = AccountNumber, Amount = 100 };
+
+            Assert.ThrowsException<Exception>(() => _service.MakePayment(request));
         }
     }
 }

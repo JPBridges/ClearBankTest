@@ -1,4 +1,5 @@
-﻿using ClearBank.DeveloperTest.Data;
+﻿using System;
+using ClearBank.DeveloperTest.Data;
 using ClearBank.DeveloperTest.Types;
 using ClearBank.DeveloperTest.Rules;
 
@@ -6,55 +7,42 @@ namespace ClearBank.DeveloperTest.Services
 {
     public class PaymentService : IPaymentService
     {
-        private readonly PaymentUtils _utils;
-        public PaymentService(IAccountStoreFactory accountStoreFactory)
+        private readonly IAccountRepository _accountRepository;
+        private readonly IPaymentValidatorFactory _paymentValidatorFactory;
+
+        public PaymentService(IAccountRepository accountRepository, IPaymentValidatorFactory paymentValidatorFactory)
         {
-            // We never want to do this - payment utils has a bunch of bundled logic
-            // that we cannot mock if we new it up in this way - better to always pass it in
-            // via constructor injection.
-            _utils = new PaymentUtils(accountStoreFactory);
-        }
-        public PaymentService()
-        {
-            // Same comment as above
-            _utils = new PaymentUtils(null);
+            _accountRepository = accountRepository ?? throw new NotImplementedException(nameof(accountRepository));
+            _paymentValidatorFactory = paymentValidatorFactory ?? throw new NotImplementedException(nameof(paymentValidatorFactory));
         }
 
         public MakePaymentResult MakePayment(MakePaymentRequest request)
         {
-            // Utils acts more like a repository. What is confusing is that it takes
-            // an IAccountStoreFactory - although IAccountStoreFactory
-            // behaves as more of an abstraction over the underlying data source.
-            var account = _utils.GetAccount(request.DebtorAccountNumber);
+            var account = _accountRepository.GetAccount(request.DebtorAccountNumber);
 
-            // We have one uber payment validator that we may want to split 
-            // into multiple classes with a single validate.
-            // Plus it been a static method is kind of a smell - it would be
-            // better if it was a fully coherent object with it's own internal
-            // members
-            var result = new MakePaymentResult
-            {
-                Success = PaymentValidator.Validate(request, account)
-            };
+            var validator = _paymentValidatorFactory.Create(request.PaymentScheme);
 
-            if (!result.Success)
+            var isValid = validator.Validate(request, account);
+
+            if (!isValid)
             {
-                // Result should probably return more information although this would break
-                // the interface so won't do that here
-                return result;
+                return new MakePaymentResult { Success = false };
             }
-
-            // Maybe account should be responsible for doing this deduction
-            // even though we validate it above - the account should probably ensure
-            // that it is never put into an invalid state - in this case I'm not sure
-            // if accounts can have a negative balance.
-            account.Balance -= request.Amount;
             
-            _utils.UpdateAccount(account);
+            // There are a couple of things here.
+            // 1. I believe it's better to have a debit/credit method on the account - it
+            //    gives room for any extra domain specific validation and also makes it
+            //    more explicit in code.
+            // 2. By doing this we've now tied the implementation of this method to the 
+            //    implementation of the account object.  We could potentially change the repository
+            //    to return an IAccount and pop in a fake implementation in the tests.
+            //    This lets us test each thing in isolation.  This is a judgement call
+            //    and I've spent a fair amount time on this already so I'm not going to do it here.
+            account.Debit(request.Amount);
+            
+            _accountRepository.UpdateAccount(account);
 
-            // Need to decide if exceptions thrown should be caught and result in a 
-            // MakePaymentResult.Success = false, or whether we just bubble the exception.
-            return result;
+            return new MakePaymentResult { Success = true };
         }
     }
 }
